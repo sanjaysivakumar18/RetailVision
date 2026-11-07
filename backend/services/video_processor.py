@@ -86,21 +86,44 @@ class VideoProcessor:
             # ----------------------------------------------------
             # Phase 1: Automatic Shelf & Structure Recognition
             # ----------------------------------------------------
-            db.update_session_progress(session_id, 12.0, "Identifying retail shelves & store layout...")
+            db.update_session_progress(session_id, 8.0, "Extracting sample frames for layout analysis...")
             
-            sample_frame_indices = np.linspace(0, max(0, total_frames - 1), num=min(10, max(3, total_frames // 40)), dtype=int)
+            sample_frame_indices = np.linspace(0, max(0, total_frames - 1), num=min(6, max(3, total_frames // 60)), dtype=int)
             sample_frames = []
+
+            # Memory-safe downscaling for sample frames (max 1280px) to prevent 512MB cloud OOM
+            sample_scale = 1.0
+            if orig_width > 1280:
+                sample_scale = 1280.0 / orig_width
+                sample_w = 1280
+                sample_h = int(orig_height * sample_scale)
+            else:
+                sample_w, sample_h = orig_width, orig_height
+
             for s_idx in sample_frame_indices:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, int(s_idx))
                 ret, frame = cap.read()
                 if ret:
+                    if sample_scale != 1.0:
+                        frame = cv2.resize(frame, (sample_w, sample_h), interpolation=cv2.INTER_AREA)
                     sample_frames.append(frame)
+
+            db.update_session_progress(session_id, 14.0, "Identifying retail shelves & store layout...")
 
             shelves = self.shelf_detector.detect_shelves_from_frames(
                 sample_frames, self.customer_tracker.model
             )
 
-            base_frame = sample_frames[0].copy() if sample_frames else np.zeros((orig_height, orig_width, 3), dtype=np.uint8)
+            # If sample was scaled, scale shelf bounding boxes back to original coordinate space
+            if sample_scale != 1.0:
+                inv_sample = 1.0 / sample_scale
+                for s in shelves:
+                    s["bbox"] = [round(c * inv_sample, 1) for c in s["bbox"]]
+
+            base_frame = sample_frames[0].copy() if sample_frames else np.zeros((sample_h, sample_w, 3), dtype=np.uint8)
+            del sample_frames
+            import gc
+            gc.collect()
 
             # ----------------------------------------------------
             # Phase 2: Frame-by-Frame Detection, Tracking & Annotations

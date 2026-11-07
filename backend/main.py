@@ -31,6 +31,14 @@ EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
 # Initialize database schema
 db.init_db()
 
+# Clear any orphaned processing sessions from previous server restarts
+try:
+    db.execute_update(
+        "UPDATE sessions SET status = 'failed', stage = 'Interrupted', error_message = 'Session interrupted by server restart. Please re-run.' WHERE status = 'processing'"
+    )
+except Exception:
+    pass
+
 app = FastAPI(
     title="RetailVision AI API",
     description="Enterprise AI-Powered Retail Intelligence Platform",
