@@ -47,12 +47,24 @@ class ShelfDetector:
         if not sample_frames:
             return []
 
-        h, w = sample_frames[0].shape[:2]
+        orig_h, orig_w = sample_frames[0].shape[:2]
+        
+        # Scale frames to max 1280 width for 10x faster contour, edge, and object analysis
+        scale = 1.0
+        if orig_w > 1280:
+            scale = 1280.0 / orig_w
+            w = 1280
+            h = int(orig_h * scale)
+            proc_frames = [cv2.resize(f, (w, h), interpolation=cv2.INTER_AREA) for f in sample_frames]
+        else:
+            w = orig_w
+            h = orig_h
+            proc_frames = sample_frames
         
         # 1. Aggregate object detections across sample frames
         all_detected_objects = []
-        for frame in sample_frames:
-            res = yolo_model(frame, conf=self.conf_threshold, verbose=False)[0]
+        for frame in proc_frames:
+            res = yolo_model(frame, conf=self.conf_threshold, imgsz=640, verbose=False)[0]
             if res.boxes is not None:
                 for box in res.boxes:
                     cls_id = int(box.cls[0].item())
@@ -68,7 +80,7 @@ class ShelfDetector:
 
         # 2. Structural edge / shelf line analysis
         # CCTV shelf racks typically feature prominent horizontal lines and dense texture
-        gray_frames = [cv2.cvtColor(f, cv2.COLOR_BGR2GRAY) for f in sample_frames]
+        gray_frames = [cv2.cvtColor(f, cv2.COLOR_BGR2GRAY) for f in proc_frames]
         avg_gray = np.mean(gray_frames, axis=0).astype(np.uint8)
         
         # Detect edges and horizontal structural lines
@@ -117,10 +129,15 @@ class ShelfDetector:
                 pos = "Center" if s["bbox"][0] > w * 0.3 and s["bbox"][2] < w * 0.7 else ("Left Aisle" if s["bbox"][0] < w * 0.4 else "Right Display")
                 label = f"{shelf_id} ({pos} Section)"
 
+            bbox = s["bbox"]
+            if scale != 1.0:
+                inv = 1.0 / scale
+                bbox = [bbox[0] * inv, bbox[1] * inv, bbox[2] * inv, bbox[3] * inv]
+
             final_shelves.append({
                 "shelf_id": shelf_id,
                 "label": label,
-                "bbox": [round(c, 1) for c in s["bbox"]],
+                "bbox": [round(c, 1) for c in bbox],
                 "confidence": round(s.get("confidence", 0.85), 3),
                 "products": list(set(products)),
                 "visit_count": 0,

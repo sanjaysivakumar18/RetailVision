@@ -14,3 +14,4 @@ services:
         value: /tmp/ultralytics
       - key: MPLCONFIGDIR
         value: /tmp/matplotlib
+
