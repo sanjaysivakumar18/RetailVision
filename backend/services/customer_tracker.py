@@ -8,7 +8,7 @@ from ultralytics import YOLO
 MODEL_PATH = Path(__file__).resolve().parent.parent.parent / "models" / "yolov8n.pt"
 
 class CustomerTracker:
-    def __init__(self, model_path: str = str(MODEL_PATH), conf_threshold: float = 0.35):
+    def __init__(self, model_path: Optional[str] = None, conf_threshold: float = 0.35):
         os.environ["YOLO_CONFIG_DIR"] = "/tmp/ultralytics"
         os.environ["MPLCONFIGDIR"] = "/tmp/matplotlib"
         # Auto-detect Apple Silicon GPU (MPS) or CUDA, otherwise CPU
@@ -19,6 +19,8 @@ class CustomerTracker:
         else:
             self.device = "cpu"
 
+        if not model_path:
+            model_path = str(MODEL_PATH) if MODEL_PATH.exists() else "yolov8n.pt"
         self.model = YOLO(model_path)
         self.conf_threshold = conf_threshold
         # In-memory history for active session tracking

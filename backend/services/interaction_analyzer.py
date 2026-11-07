@@ -9,7 +9,7 @@ from ultralytics import YOLO
 POSE_MODEL_PATH = Path(__file__).resolve().parent.parent.parent / "models" / "yolov8n-pose.pt"
 
 class InteractionAnalyzer:
-    def __init__(self, pose_model_path: str = str(POSE_MODEL_PATH)):
+    def __init__(self, pose_model_path: Optional[str] = None):
         os.environ["YOLO_CONFIG_DIR"] = "/tmp/ultralytics"
         os.environ["MPLCONFIGDIR"] = "/tmp/matplotlib"
         if torch.backends.mps.is_available():
@@ -20,6 +20,8 @@ class InteractionAnalyzer:
             self.device = "cpu"
 
         # Load YOLO-Pose for human keypoint tracking (wrists/elbows)
+        if not pose_model_path:
+            pose_model_path = str(POSE_MODEL_PATH) if POSE_MODEL_PATH.exists() else "yolov8n-pose.pt"
         self.pose_model = YOLO(pose_model_path)
         self.customer_states: Dict[int, Dict[str, Any]] = {}
         self.recorded_events: List[Dict[str, Any]] = []

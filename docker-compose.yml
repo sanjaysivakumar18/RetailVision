@@ -1,0 +1,16 @@
+services:
+  retailvision:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: retailvision_app
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./backend/uploads:/app/backend/uploads
+      - ./backend/outputs:/app/backend/outputs
+    restart: unless-stopped
+
